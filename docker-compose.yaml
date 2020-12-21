@@ -1,0 +1,63 @@
+version: '3.7'
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  api-volume:
+
+services:
+  init:
+    build:
+      context: .
+      dockerfile: ./deploy/api/Dockerfile
+      target: prod
+    networks:
+      - backend
+    env_file:
+      - .env
+    volumes:
+      - api-volume:/home/project/volume
+    command:
+      /home/project/dist/manage.py init
+
+  api:
+    build:
+      context: .
+      dockerfile: ./deploy/api/Dockerfile
+      target: prod
+    networks:
+      - backend
+    depends_on:
+      - init
+    env_file:
+      - .env
+    volumes:
+      - api-volume:/home/project/volume
+    command:
+      /usr/local/bin/gunicorn  --bind 0.0.0.0:8080  api.wsgi
+
+  web:
+    image: library/nginx:stable
+    networks:
+      - backend
+    ports:
+      - 80:8888
+    env_file:
+      - .env
+    volumes:
+      - ./PHP_client:/var/www/html
+      - ./PHP_client/site.conf:/etc/nginx/conf.d/site.conf
+      - api-volume:/home
+    depends_on:
+      - php
+
+  php:
+    networks:
+      - backend
+    env_file:
+      - .env
+    image: php:7.4-fpm-buster
+    volumes:
+      - ./PHP_client:/var/www/html
